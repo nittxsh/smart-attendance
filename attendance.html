@@ -1,0 +1,1429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartAttend – WiFi Based Attendance</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0e1a;
+  --surface: #111827;
+  --surface2: #1a2235;
+  --border: #1f2d45;
+  --accent: #00d4ff;
+  --accent2: #7c3aed;
+  --accent3: #10b981;
+  --danger: #ef4444;
+  --warn: #f59e0b;
+  --text: #e2e8f0;
+  --muted: #64748b;
+  --student-color: #3b82f6;
+  --prof-color: #10b981;
+  --admin-color: #8b5cf6;
+  --radius: 16px;
+  --radius-sm: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ===== GRID BG ===== */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: 
+    linear-gradient(rgba(0,212,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none; z-index: 0;
+}
+
+/* ===== SCREENS ===== */
+.screen { display: none; min-height: 100vh; position: relative; z-index: 1; }
+.screen.active { display: flex; flex-direction: column; }
+
+/* ===== LANDING ===== */
+#landing {
+  align-items: center; justify-content: center; text-align: center;
+  padding: 40px 20px;
+}
+.logo-badge {
+  display: inline-flex; align-items: center; gap: 10px;
+  background: rgba(0,212,255,0.08); border: 1px solid rgba(0,212,255,0.2);
+  border-radius: 100px; padding: 8px 20px; margin-bottom: 32px;
+  font-family: 'Space Mono', monospace; font-size: 12px; color: var(--accent);
+  letter-spacing: 2px;
+}
+.wifi-dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.3)} }
+h1.hero {
+  font-family: 'Space Mono', monospace;
+  font-size: clamp(2rem, 6vw, 4rem);
+  line-height: 1.1; margin-bottom: 16px;
+  background: linear-gradient(135deg, #fff 0%, var(--accent) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.hero-sub { color: var(--muted); font-size: 1.1rem; margin-bottom: 48px; max-width: 500px; }
+.role-cards { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; max-width: 900px; }
+.role-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px 28px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 240px;
+  position: relative; overflow: hidden;
+}
+.role-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.role-card.student::before { background: var(--student-color); }
+.role-card.professor::before { background: var(--prof-color); }
+.role-card.admin::before { background: var(--admin-color); }
+.role-card:hover { transform: translateY(-6px); border-color: rgba(255,255,255,0.15); box-shadow: 0 20px 60px rgba(0,0,0,0.4); }
+.role-card:hover.student { box-shadow: 0 20px 60px rgba(59,130,246,0.15); border-color: var(--student-color); }
+.role-card:hover.professor { box-shadow: 0 20px 60px rgba(16,185,129,0.15); border-color: var(--prof-color); }
+.role-card:hover.admin { box-shadow: 0 20px 60px rgba(139,92,246,0.15); border-color: var(--admin-color); }
+.role-icon { font-size: 2.5rem; margin-bottom: 16px; }
+.role-card h3 { font-family: 'Space Mono', monospace; font-size: 1rem; margin-bottom: 8px; }
+.role-card p { color: var(--muted); font-size: 0.85rem; }
+
+/* ===== TOPBAR ===== */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 24px; background: rgba(17,24,39,0.95);
+  border-bottom: 1px solid var(--border); backdrop-filter: blur(10px);
+  position: sticky; top: 0; z-index: 100;
+}
+.topbar-title { font-family: 'Space Mono', monospace; font-size: 0.9rem; }
+.topbar-role { font-size: 0.75rem; color: var(--muted); }
+.btn-back {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); padding: 8px 16px; border-radius: 8px;
+  cursor: pointer; font-size: 0.8rem; transition: all 0.2s;
+}
+.btn-back:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ===== LOGIN SCREEN ===== */
+.login-wrap {
+  flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px 20px;
+}
+.login-box {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 40px; width: 100%; max-width: 400px;
+}
+.login-box h2 { font-family: 'Space Mono', monospace; margin-bottom: 8px; }
+.login-box .login-sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 32px; }
+.form-group { margin-bottom: 20px; }
+label { font-size: 0.8rem; color: var(--muted); display: block; margin-bottom: 8px; letter-spacing: 1px; text-transform: uppercase; }
+input[type=text], input[type=password], select {
+  width: 100%; background: var(--bg); border: 1px solid var(--border);
+  color: var(--text); padding: 12px 16px; border-radius: var(--radius-sm);
+  font-size: 0.95rem; font-family: 'DM Sans', sans-serif;
+  transition: border-color 0.2s;
+}
+input:focus, select:focus { outline: none; border-color: var(--accent); }
+select option { background: var(--surface); }
+.btn {
+  width: 100%; padding: 14px; border-radius: var(--radius-sm);
+  border: none; cursor: pointer; font-size: 0.95rem; font-weight: 600;
+  font-family: 'DM Sans', sans-serif; transition: all 0.2s;
+  letter-spacing: 0.5px;
+}
+.btn-primary { background: var(--accent); color: #000; }
+.btn-primary:hover { background: #00b8d9; transform: translateY(-1px); }
+.btn-green { background: var(--accent3); color: #fff; }
+.btn-green:hover { background: #059669; }
+.btn-red { background: var(--danger); color: #fff; }
+.btn-purple { background: var(--accent2); color: #fff; }
+.btn-outline {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text);
+}
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn-sm { width: auto; padding: 8px 16px; font-size: 0.8rem; }
+
+/* ===== DASHBOARD LAYOUT ===== */
+.dash-wrap { flex: 1; padding: 24px; max-width: 1100px; margin: 0 auto; width: 100%; }
+.dash-grid { display: grid; gap: 20px; }
+.dash-grid-2 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.dash-grid-3 { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 24px;
+}
+.card-title {
+  font-family: 'Space Mono', monospace; font-size: 0.8rem;
+  color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase;
+  margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+}
+.stat-big { font-size: 2.5rem; font-weight: 700; line-height: 1; margin-bottom: 4px; }
+.stat-label { font-size: 0.85rem; color: var(--muted); }
+.badge {
+  display: inline-block; padding: 3px 10px; border-radius: 100px;
+  font-size: 0.75rem; font-weight: 600;
+}
+.badge-green { background: rgba(16,185,129,0.15); color: var(--accent3); }
+.badge-warn { background: rgba(245,158,11,0.15); color: var(--warn); }
+.badge-red { background: rgba(239,68,68,0.15); color: var(--danger); }
+.badge-blue { background: rgba(59,130,246,0.15); color: var(--student-color); }
+
+/* ===== STUDENT DASHBOARD ===== */
+.wifi-status {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; border-radius: var(--radius-sm);
+  font-size: 0.85rem; margin-bottom: 20px;
+}
+.wifi-status.connected { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.2); color: var(--accent3); }
+.wifi-status.disconnected { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); color: var(--danger); }
+.session-input-area { display: flex; gap: 10px; margin-bottom: 16px; }
+.session-input-area input { flex: 1; }
+.attendance-result {
+  padding: 20px; border-radius: var(--radius-sm); text-align: center;
+  margin-top: 16px; display: none;
+}
+.attendance-result.success { background: rgba(16,185,129,0.1); border: 1px solid var(--accent3); }
+.attendance-result.fail { background: rgba(239,68,68,0.1); border: 1px solid var(--danger); }
+.subject-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 0; border-bottom: 1px solid var(--border);
+}
+.subject-row:last-child { border-bottom: none; }
+.progress-bar { height: 6px; background: var(--bg); border-radius: 100px; overflow: hidden; margin-top: 6px; }
+.progress-fill { height: 100%; border-radius: 100px; transition: width 0.5s ease; }
+
+/* ===== PROFESSOR DASHBOARD ===== */
+.session-banner {
+  background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.05));
+  border: 1px solid rgba(16,185,129,0.3);
+  border-radius: var(--radius); padding: 24px; margin-bottom: 20px;
+}
+.qr-box {
+  background: var(--bg); border: 2px dashed var(--border);
+  border-radius: var(--radius-sm); padding: 32px; text-align: center;
+  font-family: 'Space Mono', monospace;
+}
+.qr-code-display {
+  font-size: 3rem; margin-bottom: 12px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.session-id-display {
+  font-family: 'Space Mono', monospace; font-size: 1.5rem;
+  letter-spacing: 4px; color: var(--accent); background: rgba(0,212,255,0.08);
+  border: 1px solid rgba(0,212,255,0.2); padding: 10px 20px;
+  border-radius: 8px; display: inline-block; margin: 12px 0;
+}
+.student-list { max-height: 300px; overflow-y: auto; }
+.student-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.9rem;
+}
+.student-item:last-child { border-bottom: none; }
+.timer-display {
+  font-family: 'Space Mono', monospace; font-size: 2rem;
+  color: var(--warn); text-align: center; margin: 12px 0;
+}
+.live-dot { width: 8px; height: 8px; background: var(--accent3); border-radius: 50%; animation: pulse 1s infinite; display: inline-block; }
+.manual-override-card .manual-form {
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 12px;
+}
+.manual-override-card select {
+  min-width: 220px;
+}
+.manual-checkbox {
+  display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--muted);
+}
+.manual-log {
+  border-top: 1px solid var(--border); padding-top: 12px; margin-top: 8px;
+}
+.manual-log-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.85rem;
+}
+.manual-log-row:last-child { border-bottom: none; }
+.manual-log-row span { margin-left: 12px; }
+.manual-log-time { color: var(--muted); font-size: 0.75rem; }
+.manual-roll-card .manual-roll-form {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+}
+.manual-roll-list {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px;
+}
+.manual-roll-pill {
+  padding: 8px 14px; border-radius: 999px; background: rgba(0,212,255,0.08);
+  border: 1px dashed rgba(0,212,255,0.3); font-size: 0.85rem; color: var(--accent);
+}
+.manual-toggle-list {
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  max-height: 320px; overflow-y: auto; padding: 4px 0;
+}
+.manual-toggle-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.manual-toggle-row:last-child { border-bottom: none; }
+.manual-toggle-info { display: flex; flex-direction: column; gap: 2px; }
+.toggle-switch { position: relative; width: 48px; height: 24px; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute; cursor: pointer; inset: 0; display: block;
+  background: var(--border); border-radius: 999px;
+  transition: background 0.2s ease;
+}
+.toggle-slider::before {
+  content: ''; position: absolute; height: 18px; width: 18px;
+  left: 3px; bottom: 3px; background: #fff; border-radius: 50%;
+  transition: transform 0.2s ease;
+}
+.toggle-switch input:checked + .toggle-slider {
+  background: var(--accent3);
+}
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(24px);
+}
+.toggle-switch input:focus + .toggle-slider {
+  box-shadow: 0 0 0 2px rgba(0,212,255,0.3);
+}
+.manual-alerts-grid {
+  display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.manual-attendance-table {
+  max-height: 200px; overflow-y: auto; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 12px;
+}
+.manual-attendance-row {
+  display: flex; justify-content: space-between; font-size: 0.85rem;
+  padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.manual-attendance-row:last-child { border-bottom: none; }
+.manual-below75-list {
+  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;
+  min-height: 80px;
+}
+.manual-history-list {
+  max-height: 220px; overflow-y: auto;
+}
+.manual-history-item {
+  padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.85rem;
+}
+.manual-history-item:last-child { border-bottom: none; }
+
+/* ===== ADMIN PANEL ===== */
+.admin-nav { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+.admin-nav-btn {
+  padding: 8px 16px; border-radius: 8px; cursor: pointer;
+  font-size: 0.85rem; background: var(--surface2); border: 1px solid var(--border);
+  color: var(--muted); transition: all 0.2s;
+}
+.admin-nav-btn.active { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+.admin-panel { display: none; }
+.admin-panel.active { display: block; }
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th { text-align: left; padding: 10px 14px; font-size: 0.75rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+.data-table td { padding: 12px 14px; font-size: 0.9rem; border-bottom: 1px solid var(--border); }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: var(--surface2); }
+.action-btn { padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; border: none; margin-right: 4px; }
+.action-edit { background: rgba(59,130,246,0.15); color: var(--student-color); }
+.action-del { background: rgba(239,68,68,0.15); color: var(--danger); }
+
+/* ===== ALERT SYSTEM ===== */
+.alert-box {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 16px 20px; border-radius: var(--radius-sm); margin-bottom: 12px;
+}
+.alert-box.warn { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.25); }
+.alert-box.urgent { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); }
+.alert-icon { font-size: 1.2rem; }
+
+/* ===== MODAL ===== */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  z-index: 200; align-items: center; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 32px; width: 100%; max-width: 440px; margin: 20px;
+}
+.modal h3 { font-family: 'Space Mono', monospace; margin-bottom: 20px; }
+.modal-btns { display: flex; gap: 10px; margin-top: 20px; }
+.modal-btns .btn { flex: 1; }
+
+/* ===== NOTIFICATION TOAST ===== */
+#toast {
+  position: fixed; bottom: 24px; right: 24px; z-index: 300;
+  background: var(--surface2); border: 1px solid var(--border);
+  padding: 14px 20px; border-radius: var(--radius-sm);
+  font-size: 0.9rem; max-width: 320px;
+  transform: translateY(100px); opacity: 0;
+  transition: all 0.3s ease; pointer-events: none;
+}
+#toast.show { transform: translateY(0); opacity: 1; }
+#toast.success { border-color: var(--accent3); }
+#toast.error { border-color: var(--danger); }
+#toast.warn { border-color: var(--warn); }
+
+/* Spacing utils */
+.mt8 { margin-top: 8px; }
+.mt16 { margin-top: 16px; }
+.mt24 { margin-top: 24px; }
+.mb16 { margin-bottom: 16px; }
+.flex { display: flex; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.gap8 { gap: 8px; }
+.gap16 { gap: 16px; }
+.text-center { text-align: center; }
+.text-muted { color: var(--muted); font-size: 0.85rem; }
+.divider { height: 1px; background: var(--border); margin: 20px 0; }
+</style>
+</head>
+<body>
+
+<!-- ===== TOAST ===== -->
+<div id="toast"></div>
+
+<!-- ===== LANDING ===== -->
+<div id="landing" class="screen active">
+  <div class="logo-badge"><span class="wifi-dot"></span> WIFI-BASED ATTENDANCE</div>
+  <h1 class="hero">SmartAttend</h1>
+  <p class="hero-sub">Automated WiFi + QR based attendance tracking for modern educational institutions.</p>
+  <div class="role-cards">
+    <div class="role-card student" onclick="goToLogin('student')">
+      <div class="role-icon">🎓</div>
+      <h3>Student</h3>
+      <p>Mark your attendance with WiFi verification</p>
+    </div>
+    <div class="role-card professor" onclick="goToLogin('professor')">
+      <div class="role-icon">👨‍🏫</div>
+      <h3>Professor</h3>
+      <p>Start sessions, share QR & monitor live attendance</p>
+    </div>
+    <div class="role-card admin" onclick="goToLogin('admin')">
+      <div class="role-icon">🛡️</div>
+      <h3>Admin</h3>
+      <p>Manage students, faculty, subjects & reports</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== STUDENT LOGIN ===== -->
+<div id="student-login" class="screen">
+  <div class="topbar">
+    <div><div class="topbar-title">SmartAttend</div><div class="topbar-role" style="color:var(--student-color)">Student Portal</div></div>
+    <button class="btn-back" onclick="showScreen('landing')">← Back</button>
+  </div>
+  <div class="login-wrap">
+    <div class="login-box">
+      <div style="font-size:2rem;margin-bottom:12px">🎓</div>
+      <h2>Student Login</h2>
+      <p class="login-sub">Mark your class attendance</p>
+      <div class="form-group">
+        <label>Student ID / Email</label>
+        <input type="text" id="s-email" placeholder="e.g. STU2024001" value="STU2024001">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="s-pass" placeholder="Enter password" value="pass123">
+      </div>
+      <button class="btn btn-primary" onclick="loginStudent()">Login as Student</button>
+      <p class="text-muted text-center mt8">Demo: any credentials work</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PROFESSOR LOGIN ===== -->
+<div id="professor-login" class="screen">
+  <div class="topbar">
+    <div><div class="topbar-title">SmartAttend</div><div class="topbar-role" style="color:var(--prof-color)">Professor Portal</div></div>
+    <button class="btn-back" onclick="showScreen('landing')">← Back</button>
+  </div>
+  <div class="login-wrap">
+    <div class="login-box">
+      <div style="font-size:2rem;margin-bottom:12px">👨‍🏫</div>
+      <h2>Professor Login</h2>
+      <p class="login-sub">Start and manage class sessions</p>
+      <div class="form-group">
+        <label>Faculty ID</label>
+        <input type="text" id="p-email" placeholder="e.g. PROF001" value="PROF001">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="p-pass" placeholder="Enter password" value="pass123">
+      </div>
+      <button class="btn btn-green" onclick="loginProfessor()">Login as Professor</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ADMIN LOGIN ===== -->
+<div id="admin-login" class="screen">
+  <div class="topbar">
+    <div><div class="topbar-title">SmartAttend</div><div class="topbar-role" style="color:var(--admin-color)">Admin Portal</div></div>
+    <button class="btn-back" onclick="showScreen('landing')">← Back</button>
+  </div>
+  <div class="login-wrap">
+    <div class="login-box">
+      <div style="font-size:2rem;margin-bottom:12px">🛡️</div>
+      <h2>Admin Login</h2>
+      <p class="login-sub">System management & reports</p>
+      <div class="form-group">
+        <label>Admin Username</label>
+        <input type="text" id="a-email" placeholder="admin" value="admin">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="a-pass" placeholder="Enter password" value="admin123">
+      </div>
+      <button class="btn btn-purple" onclick="loginAdmin()">Login as Admin</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== STUDENT DASHBOARD ===== -->
+<div id="student-dash" class="screen">
+  <div class="topbar">
+    <div><div class="topbar-title">🎓 Student Dashboard</div><div class="topbar-role" id="s-name-display">Rahul Sharma</div></div>
+    <button class="btn-back" onclick="logout()">Logout</button>
+  </div>
+  <div class="dash-wrap">
+
+    <!-- WiFi Status -->
+    <div class="wifi-status" id="wifi-status-bar">
+      <span>📶</span> <span id="wifi-text">Checking WiFi connection...</span>
+    </div>
+
+    <!-- Stat Cards -->
+    <div class="dash-grid dash-grid-3 mb16">
+      <div class="card">
+        <div class="card-title">📊 Overall Attendance</div>
+        <div class="stat-big" id="s-overall-pct" style="color:var(--accent3)">78%</div>
+        <div class="stat-label">Across all subjects</div>
+      </div>
+      <div class="card">
+        <div class="card-title">📅 Classes Today</div>
+        <div class="stat-big" style="color:var(--accent)">3</div>
+        <div class="stat-label">2 attended</div>
+      </div>
+      <div class="card">
+        <div class="card-title">⚠️ At Risk Subjects</div>
+        <div class="stat-big" id="s-risk-count" style="color:var(--warn)">1</div>
+        <div class="stat-label">Below 75%</div>
+      </div>
+    </div>
+
+    <!-- Alerts -->
+    <div id="student-alerts"></div>
+
+    <!-- Mark Attendance Card -->
+    <div class="card mb16">
+      <div class="card-title">✅ Mark Attendance</div>
+      <p class="text-muted mb16">Enter the Session ID provided by your professor or scan QR code.</p>
+      <div class="session-input-area">
+        <input type="text" id="session-id-input" placeholder="Enter Session ID (e.g. SES-4721)">
+        <button class="btn btn-primary btn-sm" onclick="markAttendance()">Mark Present</button>
+      </div>
+      <div class="attendance-result" id="att-result"></div>
+    </div>
+
+    <!-- Subject-wise Attendance -->
+    <div class="card">
+      <div class="card-title">📚 Subject-wise Attendance</div>
+      <div id="subject-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PROFESSOR DASHBOARD ===== -->
+<div id="professor-dash" class="screen">
+  <div class="topbar">
+    <div><div class="topbar-title">👨‍🏫 Professor Dashboard</div><div class="topbar-role" id="p-name-display">Dr. Anjali Singh</div></div>
+    <button class="btn-back" onclick="logout()">Logout</button>
+  </div>
+  <div class="dash-wrap">
+
+    <!-- Session Banner -->
+    <div id="no-session-banner" class="card mb16">
+      <div class="card-title">🚀 Start New Session</div>
+      <div class="dash-grid dash-grid-2 mt8">
+        <div class="form-group">
+          <label>Select Subject</label>
+          <select id="prof-subject">
+            <option value="Data Structures">Data Structures</option>
+            <option value="Database Management">Database Management</option>
+            <option value="Computer Networks">Computer Networks</option>
+            <option value="Operating Systems">Operating Systems</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Time Limit (minutes)</label>
+          <select id="session-time-limit">
+            <option value="5">5 minutes</option>
+            <option value="10" selected>10 minutes</option>
+            <option value="15">15 minutes</option>
+            <option value="30">30 minutes</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-green" onclick="startSession()">▶ Start Lecture Session</button>
+    </div>
+
+    <!-- Active Session -->
+    <div id="active-session-banner" class="session-banner" style="display:none">
+      <div class="flex-between mb16">
+        <div>
+          <div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px">ACTIVE SESSION</div>
+          <div style="font-size:1.2rem;font-weight:700" id="active-subject-name">-</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:0.75rem;color:var(--muted)">Time Remaining</div>
+          <div class="timer-display" id="session-timer">10:00</div>
+        </div>
+      </div>
+
+      <div class="dash-grid dash-grid-2">
+        <div class="qr-box">
+          <div class="card-title text-center" style="justify-content:center">📱 Session ID / QR</div>
+          <div class="qr-code-display">⬛⬜⬛</div>
+          <div class="session-id-display" id="session-id-shown">SES-0000</div>
+          <p class="text-muted" style="font-size:0.8rem">Share with students</p>
+        </div>
+        <div>
+          <div class="flex-between mb16">
+            <div style="font-size:0.9rem;font-weight:600"><span class="live-dot"></span> Live Attendance</div>
+            <span class="badge badge-green" id="present-count-badge">0 Present</span>
+          </div>
+          <div class="dash-grid dash-grid-2 mb16">
+            <div class="card" style="padding:14px;background:var(--bg)">
+              <div style="font-size:1.5rem;font-weight:700;color:var(--accent3)" id="prof-present-count">0</div>
+              <div class="stat-label">Present</div>
+            </div>
+            <div class="card" style="padding:14px;background:var(--bg)">
+              <div style="font-size:1.5rem;font-weight:700;color:var(--danger)" id="prof-absent-count">0</div>
+              <div class="stat-label">Absent</div>
+            </div>
+          </div>
+          <div class="student-list" id="live-student-list">
+            <div class="text-muted" style="font-size:0.85rem;text-align:center;padding:20px">Waiting for students...</div>
+          </div>
+        </div>
+      </div>
+      <div class="mt16">
+        <button class="btn btn-red" onclick="endSession()" style="width:auto;padding:12px 28px">⏹ End Session & Save</button>
+      </div>
+    </div>
+
+    <!-- Manual Override -->
+    <div class="card manual-override-card mt16">
+      <div class="card-title">📝 Manual Attendance Option B</div>
+      <p class="text-muted mb16">Use this when a student without a device requests the professor to mark their status manually.</p>
+      <div class="manual-form">
+        <select id="manual-student-select"></select>
+        <label class="manual-checkbox"><input type="checkbox" id="manual-present-checkbox" checked> Mark Present</label>
+        <button class="btn btn-primary btn-sm" onclick="applyManualAttendance()">Save Manual Mark</button>
+      </div>
+      <div class="manual-log" id="manual-override-log">
+        <div class="text-muted" style="font-size:0.85rem">No manual overrides yet.</div>
+      </div>
+    </div>
+
+    <!-- Manual Roll Entry -->
+    <div class="card manual-roll-card mt16">
+      <div class="card-title">✍️ Manual Roll Call (Toggle List)</div>
+      <p class="text-muted mb16">WiFi / QR attendance keeps running as Option A. Use this quick toggle list as Option B when students call out their roll numbers—just slide to mark present.</p>
+      <div class="manual-roll-form mb16">
+        <button class="btn btn-green btn-sm" onclick="finishManualAttendance()">Submit Attendance</button>
+        <button class="btn btn-outline btn-sm" onclick="resetManualSelection(true)">Reset Selection</button>
+      </div>
+      <div class="manual-toggle-list" id="manual-toggle-list">
+        <div class="text-muted" style="padding:16px;font-size:0.85rem">No students loaded yet.</div>
+      </div>
+      <div class="mt16">
+        <div style="font-weight:600;margin-bottom:6px">Sorted Roll List</div>
+        <div class="manual-roll-list" id="manual-roll-list">
+          <div class="text-muted" style="font-size:0.85rem">No roll numbers selected yet.</div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="manual-alerts-grid">
+        <div>
+          <div class="card-title" style="margin-bottom:8px">📄 Attendance Percentages</div>
+          <div id="manual-attendance-table" class="manual-attendance-table text-muted">No data available.</div>
+        </div>
+        <div>
+          <div class="card-title" style="margin-bottom:8px">⚠️ Students Below 75%</div>
+          <div id="manual-below75-list" class="manual-below75-list text-muted">All students are safe 🎉</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Attendance History -->
+    <div class="card mt16" id="attendance-history-card">
+      <div class="card-title">🕘 Attendance History</div>
+      <div id="attendance-history-list" class="manual-history-list text-muted">No lectures recorded yet.</div>
+    </div>
+
+    <!-- Stats -->
+    <div class="dash-grid dash-grid-3 mt16">
+      <div class="card">
+        <div class="card-title">📊 Avg Attendance</div>
+        <div class="stat-big" style="color:var(--accent)">81%</div>
+        <div class="stat-label">Across all subjects</div>
+      </div>
+      <div class="card">
+        <div class="card-title">📚 Sessions Today</div>
+        <div class="stat-big" style="color:var(--accent3)" id="sessions-today">0</div>
+        <div class="stat-label">Completed</div>
+      </div>
+      <div class="card">
+        <div class="card-title">👥 Total Students</div>
+        <div class="stat-big" style="color:var(--accent2)">42</div>
+        <div class="stat-label">Enrolled</div>
+      </div>
+    </div>
+
+    <!-- Recent Sessions -->
+    <div class="card mt16">
+      <div class="card-title">📋 Recent Sessions</div>
+      <div id="recent-sessions">
+        <div class="student-item"><span>Database Management</span><span class="badge badge-blue">28/42 Present</span></div>
+        <div class="student-item"><span>Data Structures</span><span class="badge badge-green">38/42 Present</span></div>
+        <div class="student-item"><span>Computer Networks</span><span class="badge badge-warn">22/42 Present</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ADMIN DASHBOARD ===== -->
+<div id="admin-dash" class="screen">
+  <div class="topbar">
+    <div><div class="topbar-title">🛡️ Admin Panel</div><div class="topbar-role" style="color:var(--admin-color)">System Management</div></div>
+    <button class="btn-back" onclick="logout()">Logout</button>
+  </div>
+  <div class="dash-wrap">
+
+    <!-- Stats -->
+    <div class="dash-grid dash-grid-3 mb16" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+      <div class="card"><div class="card-title">👥 Students</div><div class="stat-big" style="color:var(--student-color)">248</div></div>
+      <div class="card"><div class="card-title">👨‍🏫 Professors</div><div class="stat-big" style="color:var(--prof-color)">18</div></div>
+      <div class="card"><div class="card-title">📚 Subjects</div><div class="stat-big" style="color:var(--accent)">24</div></div>
+      <div class="card"><div class="card-title">📊 Avg Attendance</div><div class="stat-big" style="color:var(--accent2)">79%</div></div>
+    </div>
+
+    <!-- Nav -->
+    <div class="admin-nav">
+      <button class="admin-nav-btn active" onclick="adminTab('students')">👥 Students</button>
+      <button class="admin-nav-btn" onclick="adminTab('professors')">👨‍🏫 Professors</button>
+      <button class="admin-nav-btn" onclick="adminTab('subjects')">📚 Subjects</button>
+      <button class="admin-nav-btn" onclick="adminTab('timetable')">📅 Timetable</button>
+      <button class="admin-nav-btn" onclick="adminTab('reports')">📊 Reports</button>
+    </div>
+
+    <!-- Students Panel -->
+    <div id="panel-students" class="admin-panel active card">
+      <div class="flex-between mb16">
+        <div class="card-title" style="margin:0">Manage Students</div>
+        <button class="btn btn-primary btn-sm" onclick="openModal('add-student-modal')">+ Add Student</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="data-table" id="students-table">
+          <thead><tr><th>ID</th><th>Roll</th><th>Name</th><th>Branch</th><th>Attendance</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="students-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Professors Panel -->
+    <div id="panel-professors" class="admin-panel card">
+      <div class="flex-between mb16">
+        <div class="card-title" style="margin:0">Manage Professors</div>
+        <button class="btn btn-green btn-sm" onclick="openModal('add-prof-modal')">+ Add Professor</button>
+      </div>
+      <table class="data-table">
+        <thead><tr><th>ID</th><th>Name</th><th>Department</th><th>Subjects</th><th>Actions</th></tr></thead>
+        <tbody>
+          <tr><td>PROF001</td><td>Dr. Anjali Singh</td><td>Computer Science</td><td>DS, CN</td><td><button class="action-btn action-edit">Edit</button><button class="action-btn action-del">Remove</button></td></tr>
+          <tr><td>PROF002</td><td>Dr. Ramesh Kumar</td><td>Information Tech</td><td>DBMS, OS</td><td><button class="action-btn action-edit">Edit</button><button class="action-btn action-del">Remove</button></td></tr>
+          <tr><td>PROF003</td><td>Prof. Sneha Joshi</td><td>Computer Science</td><td>ML, AI</td><td><button class="action-btn action-edit">Edit</button><button class="action-btn action-del">Remove</button></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Subjects Panel -->
+    <div id="panel-subjects" class="admin-panel card">
+      <div class="flex-between mb16">
+        <div class="card-title" style="margin:0">Manage Subjects</div>
+        <button class="btn btn-purple btn-sm" onclick="openModal('add-subject-modal')">+ Add Subject</button>
+      </div>
+      <table class="data-table">
+        <thead><tr><th>Code</th><th>Subject</th><th>Professor</th><th>Semester</th><th>Actions</th></tr></thead>
+        <tbody>
+          <tr><td>CS301</td><td>Data Structures</td><td>Dr. Anjali Singh</td><td>3rd</td><td><button class="action-btn action-edit">Edit</button><button class="action-btn action-del">Delete</button></td></tr>
+          <tr><td>CS302</td><td>Database Management</td><td>Dr. Ramesh Kumar</td><td>3rd</td><td><button class="action-btn action-edit">Edit</button><button class="action-btn action-del">Delete</button></td></tr>
+          <tr><td>CS303</td><td>Computer Networks</td><td>Dr. Anjali Singh</td><td>4th</td><td><button class="action-btn action-edit">Edit</button><button class="action-btn action-del">Delete</button></td></tr>
+          <tr><td>CS304</td><td>Operating Systems</td><td>Dr. Ramesh Kumar</td><td>4th</td><td><button class="action-btn action-edit">Edit</button><button class="action-btn action-del">Delete</button></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Timetable Panel -->
+    <div id="panel-timetable" class="admin-panel card">
+      <div class="card-title">📅 Class Timetable</div>
+      <table class="data-table">
+        <thead><tr><th>Day</th><th>9:00 AM</th><th>11:00 AM</th><th>2:00 PM</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Monday</strong></td><td>Data Structures</td><td>DBMS</td><td>-</td></tr>
+          <tr><td><strong>Tuesday</strong></td><td>Computer Networks</td><td>-</td><td>Operating Systems</td></tr>
+          <tr><td><strong>Wednesday</strong></td><td>-</td><td>Data Structures</td><td>DBMS</td></tr>
+          <tr><td><strong>Thursday</strong></td><td>Operating Systems</td><td>Computer Networks</td><td>-</td></tr>
+          <tr><td><strong>Friday</strong></td><td>DBMS</td><td>-</td><td>Data Structures</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Reports Panel -->
+    <div id="panel-reports" class="admin-panel card">
+      <div class="card-title">📊 Attendance Reports & Logs</div>
+      <div class="dash-grid dash-grid-2 mb16 mt8">
+        <div class="card" style="background:var(--bg)">
+          <div class="card-title">Students Below 75%</div>
+          <div id="at-risk-list"></div>
+        </div>
+        <div class="card" style="background:var(--bg)">
+          <div class="card-title">Recent Attendance Logs</div>
+          <div id="recent-logs"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODALS ===== -->
+<div class="modal-overlay" id="add-student-modal">
+  <div class="modal">
+    <h3>➕ Add New Student</h3>
+    <div class="form-group"><label>Student Name</label><input type="text" id="new-s-name" placeholder="Full name"></div>
+    <div class="form-group"><label>Student ID</label><input type="text" id="new-s-id" placeholder="e.g. STU2024050"></div>
+    <div class="form-group"><label>Roll Number</label><input type="number" id="new-s-roll" placeholder="e.g. 120"></div>
+    <div class="form-group"><label>Branch</label>
+      <select id="new-s-branch">
+        <option>Computer Science</option><option>Information Technology</option><option>Electronics</option>
+      </select>
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-primary" onclick="addStudent()">Add Student</button>
+      <button class="btn btn-outline" onclick="closeModal('add-student-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="add-prof-modal">
+  <div class="modal">
+    <h3>➕ Add New Professor</h3>
+    <div class="form-group"><label>Name</label><input type="text" placeholder="Full name"></div>
+    <div class="form-group"><label>Faculty ID</label><input type="text" placeholder="PROF0XX"></div>
+    <div class="form-group"><label>Department</label><input type="text" placeholder="Department"></div>
+    <div class="modal-btns">
+      <button class="btn btn-green" onclick="showToast('Professor added!','success');closeModal('add-prof-modal')">Add</button>
+      <button class="btn btn-outline" onclick="closeModal('add-prof-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="add-subject-modal">
+  <div class="modal">
+    <h3>➕ Add New Subject</h3>
+    <div class="form-group"><label>Subject Name</label><input type="text" placeholder="Subject name"></div>
+    <div class="form-group"><label>Subject Code</label><input type="text" placeholder="CS3XX"></div>
+    <div class="form-group"><label>Assign Professor</label>
+      <select><option>Dr. Anjali Singh</option><option>Dr. Ramesh Kumar</option></select>
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-purple" onclick="showToast('Subject created!','success');closeModal('add-subject-modal')">Create</button>
+      <button class="btn btn-outline" onclick="closeModal('add-subject-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== APP STATE =====
+const DB = {
+  students: [
+    { id:'STU2024001', roll:101, name:'Rahul Sharma', branch:'Computer Science', attended:18, total:23 },
+    { id:'STU2024002', roll:102, name:'Priya Patel', branch:'Information Technology', attended:21, total:23 },
+    { id:'STU2024003', roll:103, name:'Arjun Mehta', branch:'Computer Science', attended:15, total:23 },
+    { id:'STU2024004', roll:104, name:'Sneha Verma', branch:'Electronics', attended:12, total:22 },
+    { id:'STU2024005', roll:105, name:'Kiran Joshi', branch:'Computer Science', attended:19, total:23 },
+    { id:'STU2024006', roll:106, name:'Ananya Das', branch:'Information Technology', attended:17, total:24 },
+  ],
+  subjects: [
+    { name:'Data Structures', attended:22, total:28, color:'#3b82f6' },
+    { name:'Database Management', attended:18, total:26, color:'#10b981' },
+    { name:'Computer Networks', attended:14, total:22, color:'#f59e0b' },
+    { name:'Operating Systems', attended:10, total:20, color:'#8b5cf6' },
+  ],
+  activeSessions: {},
+  completedSessions: [],
+  attendanceHistory: []
+};
+
+let currentRole = null;
+let sessionTimer = null;
+let sessionSeconds = 0;
+let liveAttendees = [];
+let manualOverrides = [];
+let manualAttendanceMap = {};
+let currentLectureRolls = [];
+
+function calcAttendancePct(student) {
+  if(!student || !student.total) return 0;
+  return Math.round((student.attended / student.total) * 100);
+}
+
+// ===== NAVIGATION =====
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function goToLogin(role) {
+  currentRole = role;
+  showScreen(role + '-login');
+}
+
+function logout() {
+  if(sessionTimer) { clearInterval(sessionTimer); sessionTimer = null; }
+  currentRole = null;
+  resetManualSelection();
+  showScreen('landing');
+}
+
+// ===== LOGINS =====
+function loginStudent() {
+  showToast('Welcome back, Rahul! 👋', 'success');
+  buildStudentDash();
+  showScreen('student-dash');
+}
+
+function loginProfessor() {
+  showToast('Good morning, Dr. Anjali! 🌟', 'success');
+  showScreen('professor-dash');
+  initManualControls();
+}
+
+function loginAdmin() {
+  showToast('Admin panel loaded ✅', 'success');
+  buildAdminDash();
+  showScreen('admin-dash');
+}
+
+// ===== STUDENT DASHBOARD =====
+function buildStudentDash() {
+  // Simulate WiFi check
+  setTimeout(() => {
+    const bar = document.getElementById('wifi-status-bar');
+    const txt = document.getElementById('wifi-text');
+    bar.className = 'wifi-status connected';
+    txt.textContent = '📶 Connected to INSTITUTE-WIFI (192.168.1.x) — Verified';
+  }, 1200);
+
+  // Alerts
+  const alertsDiv = document.getElementById('student-alerts');
+  let html = '';
+  DB.subjects.forEach(s => {
+    const pct = Math.round(s.attended / s.total * 100);
+    if(pct < 75) {
+      html += `<div class="alert-box urgent mb16">
+        <span class="alert-icon">🚨</span>
+        <div><strong>URGENT: ${s.name}</strong><br>
+        <span class="text-muted">Attendance: ${pct}% — At risk of shortage. Need ${Math.ceil(0.75*s.total) - s.attended} more lectures.</span></div>
+      </div>`;
+    } else if(pct < 80) {
+      html += `<div class="alert-box warn mb16">
+        <span class="alert-icon">⚠️</span>
+        <div><strong>WARNING: ${s.name}</strong><br>
+        <span class="text-muted">Attendance: ${pct}% — Close to threshold. Don't miss more classes.</span></div>
+      </div>`;
+    }
+  });
+  alertsDiv.innerHTML = html;
+
+  // Subject list
+  const list = document.getElementById('subject-list');
+  list.innerHTML = DB.subjects.map(s => {
+    const pct = Math.round(s.attended / s.total * 100);
+    const cls = pct < 75 ? 'badge-red' : pct < 80 ? 'badge-warn' : 'badge-green';
+    const needed = Math.max(0, Math.ceil(0.75 * s.total) - s.attended);
+    return `<div class="subject-row">
+      <div style="flex:1">
+        <div style="font-weight:600;margin-bottom:4px">${s.name}</div>
+        <div class="text-muted">${s.attended}/${s.total} classes</div>
+        <div class="progress-bar mt8">
+          <div class="progress-fill" style="width:${pct}%;background:${s.color}"></div>
+        </div>
+        ${needed > 0 ? `<div style="font-size:0.75rem;color:var(--warn);margin-top:4px">Need ${needed} more lectures to reach 75%</div>` : ''}
+      </div>
+      <div style="margin-left:16px">
+        <span class="badge ${cls}">${pct}%</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Overall
+  let overall = 0;
+  const loggedStudent = DB.students.find(s => s.id === 'STU2024001');
+  if(loggedStudent) {
+    overall = calcAttendancePct(loggedStudent);
+  } else {
+    const all = DB.subjects.reduce((acc, s) => ({ a: acc.a + s.attended, t: acc.t + s.total }), { a: 0, t: 0 });
+    overall = Math.round(all.a / all.t * 100);
+  }
+  document.getElementById('s-overall-pct').textContent = overall + '%';
+  document.getElementById('s-overall-pct').style.color = overall < 75 ? 'var(--danger)' : overall < 80 ? 'var(--warn)' : 'var(--accent3)';
+  const risk = DB.subjects.filter(s => Math.round(s.attended/s.total*100) < 75).length;
+  document.getElementById('s-risk-count').textContent = risk;
+}
+
+function markAttendance() {
+  const sid = document.getElementById('session-id-input').value.trim();
+  const result = document.getElementById('att-result');
+
+  if(!sid) { showToast('Please enter a Session ID', 'error'); return; }
+
+  // Check WiFi (simulated)
+  const wifiOk = document.getElementById('wifi-status-bar').classList.contains('connected');
+
+  result.style.display = 'block';
+
+  // Check if valid session exists
+  const activeSession = DB.activeSessions[sid.toUpperCase()];
+
+  if(!wifiOk) {
+    result.className = 'attendance-result fail';
+    result.innerHTML = '<div style="font-size:1.5rem">❌</div><strong>Attendance Failed</strong><br><span class="text-muted">Not connected to Institute WiFi</span>';
+    showToast('WiFi verification failed', 'error');
+    return;
+  }
+
+  if(activeSession || sid.toUpperCase().startsWith('SES-')) {
+    result.className = 'attendance-result success';
+    result.innerHTML = '<div style="font-size:1.5rem">✅</div><strong style="color:var(--accent3)">Attendance Marked PRESENT</strong><br><span class="text-muted">Session: ' + sid.toUpperCase() + ' | ' + new Date().toLocaleTimeString() + '</span>';
+    showToast('✅ Attendance marked successfully!', 'success');
+    // Update a random subject
+    const subj = DB.subjects[Math.floor(Math.random() * DB.subjects.length)];
+    subj.attended = Math.min(subj.attended + 1, subj.total + 1);
+    subj.total = Math.max(subj.total, subj.attended);
+    // If active session, add to liveAttendees
+    if(activeSession) {
+      liveAttendees.push('Rahul Sharma');
+      updateLiveList();
+    }
+  } else {
+    result.className = 'attendance-result fail';
+    result.innerHTML = '<div style="font-size:1.5rem">❌</div><strong style="color:var(--danger)">Attendance Failed</strong><br><span class="text-muted">Invalid session ID or session expired</span>';
+    showToast('Invalid Session ID', 'error');
+  }
+}
+
+// ===== PROFESSOR DASHBOARD =====
+function startSession() {
+  const subject = document.getElementById('prof-subject').value;
+  const mins = parseInt(document.getElementById('session-time-limit').value);
+  const sessionId = 'SES-' + Math.floor(1000 + Math.random() * 9000);
+
+  DB.activeSessions[sessionId] = { subject, startTime: Date.now(), duration: mins * 60 };
+  liveAttendees = [];
+  sessionSeconds = mins * 60;
+
+  document.getElementById('active-subject-name').textContent = subject;
+  document.getElementById('session-id-shown').textContent = sessionId;
+  document.getElementById('no-session-banner').style.display = 'none';
+  document.getElementById('active-session-banner').style.display = 'block';
+
+  updateLiveList();
+
+  // Timer
+  sessionTimer = setInterval(() => {
+    sessionSeconds--;
+    const m = Math.floor(sessionSeconds / 60).toString().padStart(2,'0');
+    const s = (sessionSeconds % 60).toString().padStart(2,'0');
+    document.getElementById('session-timer').textContent = `${m}:${s}`;
+    document.getElementById('session-timer').style.color = sessionSeconds < 60 ? 'var(--danger)' : 'var(--warn)';
+
+    // Simulate random students joining
+    if(sessionSeconds % 15 === 0 && liveAttendees.length < 10) {
+      const names = ['Priya Patel','Arjun Mehta','Kiran Joshi','Ananya Das','Rohan Gupta','Neha Sharma'];
+      const available = names.filter(n => !liveAttendees.includes(n));
+      if(available.length) {
+        liveAttendees.push(available[Math.floor(Math.random() * available.length)]);
+        updateLiveList();
+        showToast('New student joined session!', 'success');
+      }
+    }
+
+    if(sessionSeconds <= 0) endSession();
+  }, 1000);
+
+  showToast(`Session started: ${sessionId}`, 'success');
+}
+
+function updateLiveList() {
+  const list = document.getElementById('live-student-list');
+  const total = 42;
+  const absent = total - liveAttendees.length;
+  document.getElementById('prof-present-count').textContent = liveAttendees.length;
+  document.getElementById('prof-absent-count').textContent = absent;
+  document.getElementById('present-count-badge').textContent = liveAttendees.length + ' Present';
+
+  if(liveAttendees.length === 0) {
+    list.innerHTML = '<div class="text-muted" style="font-size:0.85rem;text-align:center;padding:20px">Waiting for students...</div>';
+  } else {
+    list.innerHTML = liveAttendees.map(n =>
+      `<div class="student-item"><span>👤 ${n}</span><span class="badge badge-green">Present</span></div>`
+    ).join('');
+  }
+}
+
+function endSession() {
+  clearInterval(sessionTimer); sessionTimer = null;
+  const count = liveAttendees.length;
+  const subject = document.getElementById('active-subject-name').textContent;
+
+  DB.completedSessions.push({ subject, present: count, total: 42, time: new Date().toLocaleTimeString() });
+  document.getElementById('sessions-today').textContent = DB.completedSessions.length;
+
+  // Add to recent sessions
+  const recent = document.getElementById('recent-sessions');
+  const cls = count/42 >= 0.8 ? 'badge-green' : count/42 >= 0.75 ? 'badge-warn' : 'badge-red';
+  recent.insertAdjacentHTML('afterbegin', `<div class="student-item"><span>${subject} <span class="text-muted">(${new Date().toLocaleTimeString()})</span></span><span class="badge ${cls}">${count}/42 Present</span></div>`);
+
+  document.getElementById('active-session-banner').style.display = 'none';
+  document.getElementById('no-session-banner').style.display = 'block';
+  document.getElementById('session-timer').textContent = '00:00';
+  DB.activeSessions = {};
+  liveAttendees = [];
+
+  showToast(`Session ended. ${count}/42 students marked present. Data saved!`, 'success');
+}
+
+function initManualControls() {
+  const select = document.getElementById('manual-student-select');
+  const checkbox = document.getElementById('manual-present-checkbox');
+  if(!select || !checkbox) return;
+  if(DB.students.length === 0) {
+    select.innerHTML = '<option disabled>No students available</option>';
+    select.disabled = true;
+  } else {
+    select.disabled = false;
+    select.innerHTML = DB.students.map(s => `<option value="${s.id}">${s.name} (Roll ${s.roll})</option>`).join('');
+  }
+  checkbox.checked = true;
+  resetManualSelection();
+  renderManualOverrides();
+  refreshAttendancePanels();
+  renderAttendanceHistory();
+}
+
+function renderManualOverrides() {
+  const log = document.getElementById('manual-override-log');
+  if(!log) return;
+  if(manualOverrides.length === 0) {
+    log.innerHTML = '<div class="text-muted" style="font-size:0.85rem">No manual overrides yet.</div>';
+    return;
+  }
+  log.innerHTML = manualOverrides.map(item => {
+    const badge = item.status === 'Present' ? 'badge-green' : 'badge-red';
+    return `<div class="manual-log-row">
+      <div>
+        <strong>${item.name}</strong>
+        <span class="text-muted" style="font-size:0.75rem">${item.id}</span>
+      </div>
+      <span class="badge ${badge}">${item.status}</span>
+      <span class="manual-log-time">${item.time}</span>
+    </div>`;
+  }).join('');
+}
+
+function applyManualAttendance() {
+  const select = document.getElementById('manual-student-select');
+  const checkbox = document.getElementById('manual-present-checkbox');
+  if(!select || !checkbox) return;
+
+  if(!Object.keys(DB.activeSessions).length) {
+    showToast('Start a live session to use manual marking', 'error');
+    return;
+  }
+
+  const studentId = select.value;
+  const student = DB.students.find(s => s.id === studentId);
+  if(!student) { showToast('Student not found', 'error'); return; }
+
+  const markPresent = checkbox.checked;
+  if(markPresent && !liveAttendees.includes(student.name)) {
+    liveAttendees.push(student.name);
+  }
+  if(!markPresent) {
+    liveAttendees = liveAttendees.filter(n => n !== student.name);
+  }
+  updateLiveList();
+
+  manualOverrides.unshift({
+    id: student.id,
+    name: student.name,
+    status: markPresent ? 'Present' : 'Absent',
+    time: new Date().toLocaleTimeString()
+  });
+  manualOverrides = manualOverrides.slice(0, 6);
+  renderManualOverrides();
+
+  showToast(`${student.name} marked ${markPresent ? 'Present' : 'Absent'} manually`, markPresent ? 'success' : 'warn');
+}
+
+function resetManualSelection(showMessage = false) {
+  manualAttendanceMap = {};
+  DB.students.forEach(s => { manualAttendanceMap[s.id] = false; });
+  currentLectureRolls = [];
+  renderManualToggleList();
+  updateManualRollList();
+  if(showMessage) {
+    showToast('Manual selection cleared', 'warn');
+  }
+}
+
+function renderManualToggleList() {
+  const container = document.getElementById('manual-toggle-list');
+  if(!container) return;
+  if(DB.students.length === 0) {
+    container.innerHTML = '<div class="text-muted" style="padding:16px;font-size:0.85rem">No students configured yet.</div>';
+    return;
+  }
+  container.innerHTML = DB.students.map(s => {
+    const checked = manualAttendanceMap[s.id] ? 'checked' : '';
+    return `<div class="manual-toggle-row">
+      <div class="manual-toggle-info">
+        <div style="font-weight:600">${s.roll} – ${s.name}</div>
+        <div class="text-muted" style="font-size:0.75rem">${s.branch}</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" ${checked} onchange="toggleManualStatus('${s.id}', this.checked)">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>`;
+  }).join('');
+}
+
+function toggleManualStatus(studentId, isPresent) {
+  if(!(studentId in manualAttendanceMap)) {
+    manualAttendanceMap[studentId] = false;
+  }
+  manualAttendanceMap[studentId] = !!isPresent;
+  updateManualRollList();
+}
+
+function updateManualRollList() {
+  const list = document.getElementById('manual-roll-list');
+  if(!list) return;
+  currentLectureRolls = DB.students
+    .filter(s => manualAttendanceMap[s.id])
+    .map(s => s.roll)
+    .sort((a, b) => a - b);
+  if(currentLectureRolls.length === 0) {
+    list.innerHTML = '<div class="text-muted" style="font-size:0.85rem">No roll numbers selected yet.</div>';
+    return;
+  }
+  list.innerHTML = currentLectureRolls.map(roll => {
+    const student = DB.students.find(s => s.roll === roll);
+    const label = student ? `${roll} – ${student.name}` : `${roll}`;
+    return `<span class="manual-roll-pill">${label}</span>`;
+  }).join('');
+}
+
+function refreshAttendancePanels() {
+  const table = document.getElementById('manual-attendance-table');
+  if(table) {
+    if(DB.students.length === 0) {
+      table.innerHTML = 'No students configured.';
+    } else {
+      table.innerHTML = DB.students.map(s => {
+        const pct = calcAttendancePct(s);
+        return `<div class="manual-attendance-row"><span>${s.roll} – ${s.name}</span><span>${pct}% (${s.attended}/${s.total})</span></div>`;
+      }).join('');
+    }
+  }
+
+  const alerts = document.getElementById('manual-below75-list');
+  if(alerts) {
+    const below = DB.students.filter(s => calcAttendancePct(s) < 75 && s.total > 0);
+    if(below.length === 0) {
+      alerts.innerHTML = 'All students are at or above 75% 🎉';
+    } else {
+      alerts.innerHTML = below.map(s => {
+        const pct = calcAttendancePct(s);
+        return `<div class="manual-attendance-row"><span>${s.roll} – ${s.name}</span><span class="badge badge-red">${pct}%</span></div>`;
+      }).join('');
+    }
+  }
+}
+
+function renderAttendanceHistory() {
+  const list = document.getElementById('attendance-history-list');
+  if(!list) return;
+  if(DB.attendanceHistory.length === 0) {
+    list.innerHTML = '<div class="text-muted">No lectures recorded yet.</div>';
+    return;
+  }
+  list.innerHTML = DB.attendanceHistory.map(item => {
+    return `<div class="manual-history-item">
+      <div style="font-weight:600">${item.subject}</div>
+      <div class="manual-log-time">${item.time}</div>
+      <div class="text-muted" style="font-size:0.8rem">Rolls: ${item.rollNumbers.length ? item.rollNumbers.join(', ') : 'None recorded'}</div>
+    </div>`;
+  }).join('');
+}
+
+function finishManualAttendance() {
+  if(currentLectureRolls.length === 0) {
+    showToast('Toggle at least one student before finishing', 'error');
+    return;
+  }
+
+  const rollSnapshot = [...currentLectureRolls];
+  DB.students.forEach(student => {
+    student.total += 1;
+    if(manualAttendanceMap[student.id]) {
+      student.attended += 1;
+    }
+  });
+
+  const subjectEl = document.getElementById('active-subject-name');
+  const subject = subjectEl ? subjectEl.textContent : 'Manual Session';
+  DB.attendanceHistory.unshift({
+    subject,
+    rollNumbers: rollSnapshot,
+    time: new Date().toLocaleString()
+  });
+  if(DB.attendanceHistory.length > 15) { DB.attendanceHistory.pop(); }
+
+  resetManualSelection();
+  refreshAttendancePanels();
+  renderAttendanceHistory();
+  renderStudentsTable();
+  buildAtRiskList();
+
+  showToast('Manual attendance saved and percentages updated', 'success');
+}
+
+// ===== ADMIN DASHBOARD =====
+function buildAdminDash() {
+  renderStudentsTable();
+  buildAtRiskList();
+  buildRecentLogs();
+}
+
+function renderStudentsTable() {
+  const tbody = document.getElementById('students-tbody');
+  if(!tbody) return;
+  tbody.innerHTML = DB.students.map(s => {
+    const pct = calcAttendancePct(s);
+    const cls = pct < 75 ? 'badge-red' : pct < 80 ? 'badge-warn' : 'badge-green';
+    const status = pct < 75 ? 'At Risk' : pct < 80 ? 'Warning' : 'Good';
+    return `<tr>
+      <td style="font-family:'Space Mono',monospace;font-size:0.8rem">${s.id}</td>
+      <td>${s.roll}</td>
+      <td>${s.name}</td>
+      <td>${s.branch}</td>
+      <td><span class="badge ${cls}">${pct}%</span><div class="text-muted" style="font-size:0.7rem">${s.attended}/${s.total}</div></td>
+      <td>${status}</td>
+      <td><button class="action-btn action-edit">Edit</button><button class="action-btn action-del" onclick="removeStudent('${s.id}')">Remove</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function buildAtRiskList() {
+  const div = document.getElementById('at-risk-list');
+  if(!div) return;
+  const atRisk = DB.students.filter(s => calcAttendancePct(s) < 75 && s.total > 0);
+  div.innerHTML = atRisk.length ? atRisk.map(s => {
+    const pct = calcAttendancePct(s);
+    return `<div class="student-item"><span>${s.name} (Roll ${s.roll})</span><span class="badge badge-red">${pct}% (${s.attended}/${s.total})</span></div>`;
+  }).join('') : '<div class="text-muted">No students at risk 🎉</div>';
+}
+
+function buildRecentLogs() {
+  const div = document.getElementById('recent-logs');
+  const logs = [
+    { msg:'DS Session – 38/42 Present', time:'09:45 AM' },
+    { msg:'DBMS Session – 28/42 Present', time:'11:10 AM' },
+    { msg:'CN Session – 22/42 Present', time:'02:00 PM' },
+  ];
+  div.innerHTML = logs.map(l => `<div class="student-item"><span style="font-size:0.85rem">${l.msg}</span><span class="text-muted">${l.time}</span></div>`).join('');
+}
+
+function addStudent() {
+  const name = document.getElementById('new-s-name').value.trim();
+  const id = document.getElementById('new-s-id').value.trim();
+  const rollVal = document.getElementById('new-s-roll').value.trim();
+  const branch = document.getElementById('new-s-branch').value;
+  const roll = parseInt(rollVal, 10);
+  if(!name || !id || isNaN(roll) || roll <= 0) { showToast('Please fill all fields with valid data', 'error'); return; }
+  if(DB.students.some(s => s.id === id)) { showToast('Student ID already exists', 'error'); return; }
+  if(DB.students.some(s => s.roll === roll)) { showToast('Roll number already exists', 'error'); return; }
+  DB.students.push({ id, roll, name, branch, attended: 0, total: 0 });
+  renderStudentsTable();
+  initManualControls();
+  refreshAttendancePanels();
+  closeModal('add-student-modal');
+  showToast(`${name} added successfully!`, 'success');
+}
+
+function removeStudent(id) {
+  DB.students = DB.students.filter(s => s.id !== id);
+  renderStudentsTable();
+  initManualControls();
+  refreshAttendancePanels();
+  showToast('Student removed', 'warn');
+}
+
+function adminTab(tab) {
+  document.querySelectorAll('.admin-nav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('panel-' + tab).classList.add('active');
+}
+
+// ===== MODALS =====
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if(e.target === m) m.classList.remove('open'); });
+});
+
+// ===== TOAST =====
+function showToast(msg, type = 'info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show ' + type;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.className = ''; }, 3500);
+}
+
+// ===== INIT =====
+// Simulate WiFi detection delay on student page
+document.getElementById('wifi-status-bar').className = 'wifi-status disconnected';
+document.getElementById('wifi-text').textContent = 'Checking WiFi...';
+resetManualSelection();
+refreshAttendancePanels();
+renderAttendanceHistory();
+</script>
+</body>
+</html>
